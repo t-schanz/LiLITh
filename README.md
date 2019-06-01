@@ -1,0 +1,1 @@
+# LiLITh (Learning intelligently to map LIDAR and Thermal camera data)
