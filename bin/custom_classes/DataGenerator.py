@@ -37,7 +37,9 @@ class DataGenerator(Sequential):
             X[i, ] = self.__get_image(ID)
             y[i, ] = self.__get_cbh(ID)
 
-        return X, y
+        X_norm = self.__data_normalization(X)
+        y_norm = self.__data_normalization(y, min=-1, max=10000)
+        return X_norm, y_norm
 
     def __len__(self):
         return int(np.floor(len(self.indices) / self.batch_size))
@@ -51,7 +53,7 @@ class DataGenerator(Sequential):
     @staticmethod
     def __get_image_time(image_file):
         filename = os.path.split(image_file)[-1]
-        date = dt.strptime(filename[:10], "m%y%m%d%H%M%S")
+        date = dt.strptime(filename[:13], "m%y%m%d%H%M%S")
         logging.debug(f"Got time {date.strftime('%X %x')} from image {filename}")
         return date
 
@@ -77,6 +79,22 @@ class DataGenerator(Sequential):
         image = self.__get_image(0)
         logging.info(f"Automatically set image dim to: {image.shape}")
         return image.shape
+
+    @staticmethod
+    def __data_normalization(array, min=0, max=255) -> np.ndarray:
+        """
+        Normalizes the values of array to be between -1 and 1.
+
+        Args:
+            array: array to be normalized
+            min: absolute minimum of all appearing values
+            max: absolute maximum of all appearing values
+
+        Returns:
+            np.array with normalized values
+        """
+
+        return (array - (np.mean((min, max)))) / (max - min) * 1.999
 
 if __name__ == "__main__":
     import glob
