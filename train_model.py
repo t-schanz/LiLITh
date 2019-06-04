@@ -1,7 +1,9 @@
-from .bin.custom_classes.KerasModel import ModelStrucure
-from .bin.custom_classes.DataGenerator import DataGenerator
+from bin.custom_classes.KerasModel import ModelStrucure
+from bin.custom_classes.DataGenerator import DataGenerator
+from bin.training import ModelTrainer
 import argparse
 import glob
+import logging
 
 def get_args():
     parser = argparse.ArgumentParser()
@@ -28,11 +30,28 @@ def get_args():
     parser.add_argument('--batches',  metavar=16, type=int, help="Set the batch size.",
                         required=False, default=16)
 
+    parser.add_argument('-v', '--verbose', metavar="DEBUG",
+                        help='Set the level of verbosity [DEBUG, INFO, WARNING, ERROR]',
+                        required=False, default="INFO")
+
     args = vars(parser.parse_args())
     return args
 
+
+def setup_logging(verbose):
+    assert verbose in ["DEBUG", "INFO", "WARNING", "ERROR"]
+    logging.basicConfig(
+        level=logging.getLevelName(verbose),
+        format="%(asctime)s - %(levelname)s - %(module)s - %(funcName)s - %(message)s",
+        handlers=[
+            logging.FileHandler(f"{__file__}.log"),
+            logging.StreamHandler()
+        ])
+
+
 if __name__ == "__main__":
     args = get_args()
+    setup_logging("DEBUG")
 
     image_files = sorted(glob.glob("D:/2019_Sonne/THERMAL/mx10-18-202-137/2019/extracted/05/01/*"))
     lidar_files = sorted(glob.glob("D:/2019_Sonne/ceilometer/20190501_RV Sonne_CHM188105_000.nc"))
@@ -42,3 +61,15 @@ if __name__ == "__main__":
     train_gen = DataGenerator(image_files=image_files[:-1000], lidar_files=lidar_files, batch_size=batch_size)
     valid_gen = DataGenerator(image_files=image_files[-1000:], lidar_files=lidar_files, batch_size=batch_size)
 
+    gen0 = valid_gen[0]
+    logging.debug(f"Generator shape: {gen0[0].shape}")
+    logging.debug(f"Image shape: {gen0[0][0].shape}")
+
+    Ms = ModelStrucure()
+    model = Ms.build_model(in_shape=gen0[0][0].shape)
+
+    Trainer = ModelTrainer(model=model, training_generator=train_gen, valid_generator=valid_gen,
+                           batch_size=batch_size, epochs=args["epochs"], run_id=args["run_id"],
+                           outpath=args["outpath"], workers=args["workers"], shuffling=True)
+
+    Trainer.train_model()

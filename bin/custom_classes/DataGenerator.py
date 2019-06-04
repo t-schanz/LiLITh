@@ -72,8 +72,11 @@ class DataGenerator(Sequential):
 
     def __get_image(self, index):
         im = Image.open(self.image_files[index])
-        array = np.array(im)[:, :, 0]
-        return array
+        array = np.array(im)[:, :, :]
+        width = array.shape[0]
+        height = array.shape[1]
+        resized_array = array[int(width/2)-112:int(width/2)+112, int(height/2)-112:int(height/2)+112]
+        return resized_array
 
     def __get_image_dim(self):
         image = self.__get_image(0)
