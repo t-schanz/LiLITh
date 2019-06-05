@@ -12,7 +12,7 @@ def get_args():
 
     parser.add_argument('-o', '--outpath', metavar="./checkpoints/", help="Set the path where to save"
                                                                           "the trained model structure and weights.",
-                        required=False, default=None)
+                        required=False, default="./checkpoints/")
 
     parser.add_argument('-e', '--epochs', metavar=100, type=int, help="Set on how many epochs to train.",
                         required=True, default=None)
@@ -51,15 +51,15 @@ def setup_logging(verbose):
 
 if __name__ == "__main__":
     args = get_args()
-    setup_logging("DEBUG")
+    setup_logging("INFO")
 
-    image_files = sorted(glob.glob("D:/2019_Sonne/THERMAL/mx10-18-202-137/2019/extracted/05/01/*"))
+    image_files = sorted(glob.glob("D:/2019_Sonne/THERMAL/mx10-18-202-137/2019/extracted/05/*/*"))
     lidar_files = sorted(glob.glob("D:/2019_Sonne/ceilometer/20190501_RV Sonne_CHM188105_000.nc"))
 
     batch_size = args["batches"]
 
-    train_gen = DataGenerator(image_files=image_files[:-1000], lidar_files=lidar_files, batch_size=batch_size)
-    valid_gen = DataGenerator(image_files=image_files[-1000:], lidar_files=lidar_files, batch_size=batch_size)
+    train_gen = DataGenerator(image_files=image_files[:-10000], lidar_files=lidar_files, batch_size=batch_size)
+    valid_gen = DataGenerator(image_files=image_files[-10000:], lidar_files=lidar_files, batch_size=batch_size)
 
     gen0 = valid_gen[0]
     logging.debug(f"Generator shape: {gen0[0].shape}")

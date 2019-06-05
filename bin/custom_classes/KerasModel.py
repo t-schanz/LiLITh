@@ -63,8 +63,8 @@ class ModelStrucure(object):
         pool4 = layers.MaxPool2D(3, 2)(pad4)
         logging.debug(f"pool4: {K.int_shape(pool4)}")
     
-        aux_clf1 = self.aux_clf(inception4a)
-        aux_clf2 = self.aux_clf(inception4d)
+        # aux_clf1 = self.aux_clf(inception4a)
+        # aux_clf2 = self.aux_clf(inception4d)
     
         inception5a = self.inception_module(pool4, 256, 160, 320, 32, 128, 128)
         inception5b = self.inception_module(inception5a, 384, 192, 384, 48, 128, 128)
@@ -73,15 +73,15 @@ class ModelStrucure(object):
     
         avg_pool = layers.GlobalAvgPool2D()(pool5)
         dropout = layers.Dropout(0.4)(avg_pool)
-        preds = layers.Dense(1000, activation='linear')(dropout)
+        preds = layers.Dense(1, activation='linear')(dropout)
     
-        model = Model(in_layer, [preds, aux_clf1, aux_clf2])
-        model = self.build_model(model)
+        model = Model(in_layer, preds)
+        model = self.compile(model)
         return model
 
     def compile(self, model):
         model.compile(loss="mse", optimizer=self.optimizer(),
-                      metrics=["accuracy"])
+                      metrics=['mae'])
         logging.info("Successfully compiled model.")
         return model
 

@@ -1,4 +1,4 @@
-from keras import Sequential
+from keras.utils import Sequence
 import xarray as xr
 import dask.array as da
 import os
@@ -7,7 +7,8 @@ import numpy as np
 from PIL import Image
 import logging
 
-class DataGenerator(Sequential):
+
+class DataGenerator(Sequence):
 
     def __init__(self, image_files, lidar_files, batch_size, image_dim=None, shuffle=True):
         self.batch_size = batch_size
