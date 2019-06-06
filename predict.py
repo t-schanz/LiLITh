@@ -45,6 +45,6 @@ if __name__ == "__main__":
 
     lidar_array = match_lidar_to_image(image_time_array, ds.cbh)
 
-    Pred = Prediction("./checkpoints/1/weights-improvement-08.hdf5")
+    Pred = Prediction("./checkpoints/2/weights-improvement-02.hdf5")
     X, y = Pred.predict(image_array, lidar_array)
     Pred.save(X, y, image_time_array, "./results/CBH_20190501.nc")

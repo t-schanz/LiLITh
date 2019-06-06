@@ -19,13 +19,14 @@ class ModelTrainer(object):
     def train_model(self):
         filepath = self.outpath + str(self.run_id) + "/weights-improvement-{epoch:02d}.hdf5"
         logging.info(f"Will write checkpoints to: {filepath}")
-        checkpoint = ModelCheckpoint(filepath, verbose=1, save_best_only=True, save_weights_only=False, mode='auto')
+        checkpoint = ModelCheckpoint(filepath, verbose=1, save_best_only=True, save_weights_only=False, mode='min',
+                                     monitor='val_loss',)
         callbacks_list = [checkpoint]
         tb_logdir = f"./tb_log/{self.run_id}/"
         logging.debug(f"Tensorboard logdir at: {tb_logdir}")
         callbacks_list.append(TensorBoard(log_dir=tb_logdir, histogram_freq=0, write_graph=True, write_images=False,
                                      write_grads=True, update_freq="batch", batch_size=self.batch_size))
-        callbacks_list.append(ReduceLROnPlateau())
+        callbacks_list.append(ReduceLROnPlateau(patience=2))
 
         self.model.fit_generator(generator=self.training_generator,
                                  validation_data=self.valid_generator,
