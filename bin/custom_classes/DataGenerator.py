@@ -10,13 +10,14 @@ import logging
 
 class DataGenerator(Sequence):
 
-    def __init__(self, image_files, lidar_files, batch_size, image_dim=None, shuffle=True):
+    def __init__(self, image_files, lidar_files, dship_path, batch_size, image_dim=None, shuffle=True):
         self.batch_size = batch_size
         self.image_files = image_files
         self.image_dim = image_dim or self.__get_image_dim()
         self.shuffle = shuffle
         self.indices = np.arange(len(image_files))
         self.lidar = self.__get_lidar_ds(lidar_files)
+        self.dship, self.dship_dates = self.__get_regression_data(dship_path)
 
         self.on_epoch_end()
 
@@ -26,7 +27,6 @@ class DataGenerator(Sequence):
             np.random.shuffle(self.indices)
         else:
             logging.debug("NO SHUFFLING")
-
 
     def __getitem__(self, index):
         batch_indices = self.indices[index * self.batch_size:(index + 1) * self.batch_size]
@@ -46,6 +46,31 @@ class DataGenerator(Sequence):
         return int(np.floor(len(self.indices) / self.batch_size))
 
     @staticmethod
+    def __get_regression_data(file_path):
+        with open(file_path, "r") as f:
+            dataset = np.genfromtxt(f,
+                                    delimiter=";",
+                                    skip_header=3,
+                                    # dtype=None,
+                                    usecols=[6, 7, 8, 9, 10]
+                                    )
+
+        with open(file_path, "r") as f:
+            dataset_dates = np.genfromtxt(f,
+                                          delimiter=";",
+                                          skip_header=3,
+                                          dtype=None,
+                                          usecols=[0]
+                                          )
+
+        generate_dates = np.vectorize(lambda x: dt.strptime(x.decode(), "%Y%m%dT%H%M%S"))
+        dataset_dates = generate_dates(dataset_dates)
+
+        #TODO: create xarray dataset from both arrays
+
+        return dataset, dataset_dates
+
+    @staticmethod
     def __get_lidar_ds(lidar_files):
         ds = xr.open_mfdataset(sorted(lidar_files))
         cbh = ds.cbh.sel(layer=1)
@@ -63,6 +88,9 @@ class DataGenerator(Sequence):
         matched_time = matched_lidar_ds.time.values
         logging.debug(f"Matching image_date {image_date.strftime('%x %X')} to lidar date {str(matched_time)}")
         return matched_lidar_ds.data
+
+    def __match_dship_to_image(self):
+        #TODO: use the created xarray dataset and get files parallel to lidar files.
 
     def __get_cbh(self, ID):
         image_file = self.image_files[ID]
@@ -105,8 +133,8 @@ if __name__ == "__main__":
     logging.basicConfig(level=logging.DEBUG)
     image_files = sorted(glob.glob("D:/2019_Sonne/THERMAL/mx10-18-202-137/2019/extracted/05/01/*"))
     lidar_files = sorted(glob.glob("D:/2019_Sonne/ceilometer/20190501_RV Sonne_CHM188105_000.nc"))
-
-    DG = DataGenerator(image_files=image_files, lidar_files=lidar_files, batch_size=32)
+    dship_file = "D:/2019_Sonne/DSHIP/DSHIP_WEATHER_5MIN-RES_20181020-20190610/DSHIP_WEATHER_5MIN-RES_20181020-20190610.csv"
+    DG = DataGenerator(image_files=image_files, lidar_files=lidar_files, dship_path=dship_file, batch_size=32)
 
     for i in range(len(DG))[:1]:
         print(i)

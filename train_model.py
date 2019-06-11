@@ -1,4 +1,4 @@
-from bin.custom_classes.KerasModel import ModelStrucure
+from bin.custom_classes.KerasModel2 import ModelStrucure
 from bin.custom_classes.DataGenerator import DataGenerator
 from bin.training import ModelTrainer
 import argparse
@@ -53,7 +53,7 @@ if __name__ == "__main__":
     args = get_args()
     setup_logging("INFO")
 
-    image_files = sorted(glob.glob("D:/2019_Sonne/THERMAL/mx10-18-202-137/2019/extracted/05/*/*"))[:100]
+    image_files = sorted(glob.glob("D:/2019_Sonne/THERMAL/mx10-18-202-137/2019/extracted/05/*/*"))
     lidar_files = sorted(glob.glob("D:/2019_Sonne/ceilometer/20190501_RV Sonne_CHM188105_000.nc"))
 
     batch_size = args["batches"]
@@ -66,7 +66,8 @@ if __name__ == "__main__":
     logging.debug(f"Image shape: {gen0[0][0].shape}")
 
     Ms = ModelStrucure()
-    model = Ms.build_model(in_shape=gen0[0][0].shape)
+    model = Ms.build_model(CNN_shape=gen0[0][0].shape)
+    model = Ms.compile(model)
 
     Trainer = ModelTrainer(model=model, training_generator=train_gen, valid_generator=valid_gen,
                            batch_size=batch_size, epochs=args["epochs"], run_id=args["run_id"],

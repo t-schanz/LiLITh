@@ -1,0 +1,12 @@
+name: KerasEnv
+channels:
+  - conda-forge
+dependencies:
+  - keras-gpu
+  - tensorboard
+  - xarray
+  - numpy
+  - pillow
+  - tqdm
+  - dask
+  - matplotlib

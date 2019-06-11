@@ -19,7 +19,7 @@ class ModelTrainer(object):
     def train_model(self):
         filepath = self.outpath + str(self.run_id) + "/weights-improvement-{epoch:02d}.hdf5"
         logging.info(f"Will write checkpoints to: {filepath}")
-        checkpoint = ModelCheckpoint(filepath, verbose=1, save_best_only=True, save_weights_only=False, mode='min',
+        checkpoint = ModelCheckpoint(filepath, verbose=1, save_best_only=False, save_weights_only=False, mode='min',
                                      monitor='val_loss',)
         callbacks_list = [checkpoint]
         tb_logdir = f"./tb_log/{self.run_id}/"

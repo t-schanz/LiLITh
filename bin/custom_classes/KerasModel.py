@@ -5,6 +5,7 @@ import logging
 from functools import partial
 import keras.backend as K
 
+
 class ModelStrucure(object):
     def __init__(self):
         self.conv1x1 = partial(layers.Conv2D, kernel_size=1, activation='relu')
@@ -94,4 +95,3 @@ class ModelStrucure(object):
 if __name__ == '__main__':
     MS = ModelStrucure()
     model = MS.build_model()
-
