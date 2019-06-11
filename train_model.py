@@ -55,18 +55,22 @@ if __name__ == "__main__":
 
     image_files = sorted(glob.glob("D:/2019_Sonne/THERMAL/mx10-18-202-137/2019/extracted/05/*/*"))
     lidar_files = sorted(glob.glob("D:/2019_Sonne/ceilometer/20190501_RV Sonne_CHM188105_000.nc"))
+    dship_file = "D:/2019_Sonne/DSHIP/DSHIP_WEATHER_5MIN-RES_20181020-20190610/DSHIP_WEATHER_5MIN-RES_20181020-20190610.csv"
 
     batch_size = args["batches"]
 
-    train_gen = DataGenerator(image_files=image_files[:-10000], lidar_files=lidar_files, batch_size=batch_size)
-    valid_gen = DataGenerator(image_files=image_files[-10000:], lidar_files=lidar_files, batch_size=batch_size)
+    train_gen = DataGenerator(image_files=image_files[:-10000], lidar_files=lidar_files, dship_path=dship_file,
+                              batch_size=batch_size)
+    valid_gen = DataGenerator(image_files=image_files[-10000:], lidar_files=lidar_files, dship_path=dship_file,
+                              batch_size=batch_size)
 
     gen0 = valid_gen[0]
-    logging.debug(f"Generator shape: {gen0[0].shape}")
-    logging.debug(f"Image shape: {gen0[0][0].shape}")
+    logging.debug(f"Image shape: {gen0[0][0][0].shape}")
+    logging.debug(f"DSHIP shape: {gen0[0][1][0].shape}")
+
 
     Ms = ModelStrucure()
-    model = Ms.build_model(CNN_shape=gen0[0][0].shape)
+    model = Ms.build_model(CNN_shape=gen0[0][0][0].shape, MLP_shape=gen0[0][1][0].shape[0])
     model = Ms.compile(model)
 
     Trainer = ModelTrainer(model=model, training_generator=train_gen, valid_generator=valid_gen,

@@ -17,7 +17,8 @@ class DataGenerator(Sequence):
         self.shuffle = shuffle
         self.indices = np.arange(len(image_files))
         self.lidar = self.__get_lidar_ds(lidar_files)
-        self.dship, self.dship_dates = self.__get_regression_data(dship_path)
+        self.dship = self.__get_regression_data(dship_path)
+        self.dship_norm = self.__norm_dship_data()
 
         self.on_epoch_end()
 
@@ -33,14 +34,20 @@ class DataGenerator(Sequence):
         logging.debug(f"batch_indices: {batch_indices}")
         X = np.empty((self.batch_size, *self.image_dim))
         y = np.empty((self.batch_size))
+        dship = np.empty((self.batch_size, 5))
 
         for i, ID in enumerate(batch_indices):
+            image_file = self.image_files[ID]
+            image_date = self.__get_image_time(image_file)
+            logging.debug(f"Got image date: {image_date.strftime('%x %X')}")
             X[i, ] = self.__get_image(ID)
-            y[i, ] = self.__get_cbh(ID)
+            y[i, ] = self.__get_cbh(image_date)
+            dship[i, ] = self.__match_dship_to_image(image_date)
 
+        logging.debug(f"X max: {X.max()}")
         X_norm = self.__data_normalization(X)
-        y_norm = self.__data_normalization(y, min=-1, max=10000)
-        return X_norm, y_norm
+        y_norm = self.__data_normalization(y, vmin=-1, vmax=10000)
+        return [X_norm, dship], y_norm
 
     def __len__(self):
         return int(np.floor(len(self.indices) / self.batch_size))
@@ -48,32 +55,43 @@ class DataGenerator(Sequence):
     @staticmethod
     def __get_regression_data(file_path):
         with open(file_path, "r") as f:
-            dataset = np.genfromtxt(f,
-                                    delimiter=";",
-                                    skip_header=3,
-                                    # dtype=None,
-                                    usecols=[6, 7, 8, 9, 10]
-                                    )
+            dataset = np.genfromtxt(f, delimiter=";", skip_header=3, usecols=[6, 7, 8, 9, 10])
 
         with open(file_path, "r") as f:
-            dataset_dates = np.genfromtxt(f,
-                                          delimiter=";",
-                                          skip_header=3,
-                                          dtype=None,
-                                          usecols=[0]
-                                          )
+            dataset_dates = np.genfromtxt(f, delimiter=";", skip_header=3, dtype=None, usecols=[0])
 
         generate_dates = np.vectorize(lambda x: dt.strptime(x.decode(), "%Y%m%dT%H%M%S"))
         dataset_dates = generate_dates(dataset_dates)
 
-        #TODO: create xarray dataset from both arrays
+        ds_lat = xr.DataArray(dataset[:, 0], dims=["time"], coords={"time": dataset_dates})
+        ds_lon = xr.DataArray(dataset[:, 1], dims=["time"], coords={"time": dataset_dates})
+        ds_temp = xr.DataArray(dataset[:, 2], dims=["time"], coords={"time": dataset_dates})
+        ds_pressure = xr.DataArray(dataset[:, 3], dims=["time"], coords={"time": dataset_dates})
+        ds_humid = xr.DataArray(dataset[:, 4], dims=["time"], coords={"time": dataset_dates})
 
-        return dataset, dataset_dates
+        ds = xr.Dataset({"lat": ds_lat, "lon": ds_lon, "temperature": ds_temp, "pressure": ds_pressure,
+                         "humidity": ds_humid})
+        return ds
+
+    def __norm_dship_data(self):
+        temp = self.__data_normalization(self.dship["temperature"], vmin=-20, vmax=40)
+        lat = self.__data_normalization(self.dship["lat"], vmin=-90, vmax=90)
+        lon = self.__data_normalization(self.dship["lon"], vmin=-180, vmax=180)
+        pressure = self.__data_normalization(self.dship["pressure"], vmin=970, vmax=1100)
+        humidity = self.__data_normalization(self.dship["humidity"], vmin=0, vmax=100)
+
+        ds = xr.Dataset({"lat": lat, "lon": lon, "temperature": temp, "pressure": pressure,
+                         "humidity": humidity})
+
+        ds = ds.fillna(-1)
+
+        return ds
 
     @staticmethod
     def __get_lidar_ds(lidar_files):
         ds = xr.open_mfdataset(sorted(lidar_files))
         cbh = ds.cbh.sel(layer=1)
+        cbh = cbh.fillna(0)
         return cbh
 
     @staticmethod
@@ -89,13 +107,21 @@ class DataGenerator(Sequence):
         logging.debug(f"Matching image_date {image_date.strftime('%x %X')} to lidar date {str(matched_time)}")
         return matched_lidar_ds.data
 
-    def __match_dship_to_image(self):
-        #TODO: use the created xarray dataset and get files parallel to lidar files.
+    def __match_dship_to_image(self, image_date):
+        matched_dship_ds = self.dship_norm.sel(time=image_date, method="nearest")
+        matched_time = matched_dship_ds.time.values
+        logging.debug(f"Matching image_date {image_date.strftime('%x %X')} to dship date {str(matched_time)}")
 
-    def __get_cbh(self, ID):
-        image_file = self.image_files[ID]
-        image_date = self.__get_image_time(image_file)
-        logging.debug(f"Got image date: {image_date.strftime('%x %X')}")
+        lat = matched_dship_ds.lat.data
+        lon = matched_dship_ds.lon.data
+        temp = matched_dship_ds.temperature.data
+        pres = matched_dship_ds.pressure.data
+        humid = matched_dship_ds.humidity.data
+
+        return lat, lon, temp, pres, humid
+
+    def __get_cbh(self, image_date):
+
         cbh = self.__match_lidar_to_image(image_date)
         return cbh
 
@@ -113,20 +139,19 @@ class DataGenerator(Sequence):
         return image.shape
 
     @staticmethod
-    def __data_normalization(array, min=0, max=255) -> np.ndarray:
+    def __data_normalization(array, vmin=0, vmax=255) -> np.ndarray:
         """
         Normalizes the values of array to be between -1 and 1.
 
         Args:
             array: array to be normalized
-            min: absolute minimum of all appearing values
-            max: absolute maximum of all appearing values
+            vmin: absolute minimum of all appearing values
+            vmax: absolute maximum of all appearing values
 
         Returns:
             np.array with normalized values
         """
-
-        return (array - (np.mean((min, max)))) / (max - min) * 1.999
+        return (array - (np.mean((vmin, vmax)))) / (vmax - vmin) * 1.999
 
 if __name__ == "__main__":
     import glob

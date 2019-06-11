@@ -10,10 +10,11 @@ class Prediction(object):
         self.model = load_model(weight_file)
 
     def predict(self, X, y):
-        X_norm = self.data_normalization(X, min=0, max=255)
-        predictions = self.model.predict(X_norm)[:,0]
+        # X_norm = self.data_normalization(X[0], min=0, max=255)
+        predictions = self.model.predict(X)[:,0]
         preds_rescaled = self.prediction2cbh(predictions)
-        return preds_rescaled, y
+        y_rescaled = self.prediction2cbh(y)
+        return preds_rescaled, y_rescaled
 
     @staticmethod
     def prediction2cbh(prediction):

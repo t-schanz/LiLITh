@@ -1,4 +1,4 @@
-from keras.callbacks import ModelCheckpoint, TensorBoard, ReduceLROnPlateau
+from keras.callbacks import ModelCheckpoint, TensorBoard, ReduceLROnPlateau, CSVLogger
 import logging
 
 
@@ -26,7 +26,8 @@ class ModelTrainer(object):
         logging.debug(f"Tensorboard logdir at: {tb_logdir}")
         callbacks_list.append(TensorBoard(log_dir=tb_logdir, histogram_freq=0, write_graph=True, write_images=False,
                                      write_grads=True, update_freq="batch", batch_size=self.batch_size))
-        callbacks_list.append(ReduceLROnPlateau(patience=2))
+        callbacks_list.append(ReduceLROnPlateau(patience=10))
+        callbacks_list.append(CSVLogger(filename=self.outpath + str(self.run_id) + "/train_log.csv"))
 
         self.model.fit_generator(generator=self.training_generator,
                                  validation_data=self.valid_generator,

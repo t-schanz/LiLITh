@@ -1,4 +1,4 @@
-from keras.layers import Input, Conv2D, MaxPooling2D, Flatten, Dense, concatenate
+from keras.layers import Input, Conv2D, MaxPooling2D, Flatten, Dense, concatenate, BatchNormalization, Dropout
 from keras.models import Model, Sequential
 from keras.optimizers import Adam
 import keras.backend as K
@@ -12,9 +12,10 @@ class ModelStrucure(object):
 
     @staticmethod
     def __build_MLP(in_shape, regress=False):
+        logging.debug(f"MLP input shape: {in_shape}")
         model = Sequential()
         model.add(Dense(8, input_dim=in_shape, activation="relu"))
-        model.add(Dense(4, activation="relu"))
+        model.add(Dense(5, activation="relu"))
 
         if regress:
             model.add(Dense(1, activation="linear"))
@@ -22,13 +23,14 @@ class ModelStrucure(object):
         return model
 
     @staticmethod
-    def __build_CNN(in_shape):
+    def __build_CNN(in_shape, regress=False):
         nout = 2
 
         in_layer = Input(in_shape)
         logging.debug(f"Input_shape: {K.int_shape(in_layer)}")
 
         layer = Conv2D(filters=nout, kernel_size=(3, 3), padding="SAME", activation="linear")(in_layer)
+        layer = BatchNormalization()(layer)
         layer = LeakyReLU()(layer)
         logging.debug(f"After first convolution: {K.int_shape(layer)}")
 
@@ -36,6 +38,7 @@ class ModelStrucure(object):
         while go_on:
             try:
                 t_layer = Conv2D(filters=nout, kernel_size=(3, 3), padding="SAME", activation="linear")(layer)
+                t_layer = BatchNormalization()(t_layer)
                 t_layer = LeakyReLU()(t_layer)
 
                 t_layer = MaxPooling2D(pool_size=(2, 2))(t_layer)
@@ -49,14 +52,17 @@ class ModelStrucure(object):
                 logging.debug(f"Final pooling shape: {K.int_shape(layer)}")
 
         layer = Conv2D(filters=nout, kernel_size=(2, 2), padding="SAME", activation="linear")(layer)
+        layer = BatchNormalization()(layer)
         layer = LeakyReLU()(layer)
 
         layer = Flatten()(layer)
-        layer = Dense(nout, kernel_initializer="normal")(layer)
-        output = Dense(1, kernel_initializer="normal")(layer)
+        layer = Dense(5, activation="relu")(layer)
+
+        if regress:
+            layer = Dense(1, activation="linear")(layer)
         logging.debug(f"Output shape: {K.int_shape(layer)}")
 
-        model = Model(inputs=in_layer, outputs=output)
+        model = Model(inputs=in_layer, outputs=layer)
 
         return model
 
@@ -64,11 +70,12 @@ class ModelStrucure(object):
         CNN = self.__build_CNN(CNN_shape)
         MLP = self.__build_MLP(MLP_shape)
 
-        input = concatenate([MLP.output, CNN.output])
+        input = concatenate([CNN.output, MLP.output])
         layer = Dense(4, activation="relu")(input)
-        output = Dense(1, activation="linear")(layer)
+        layer = Dropout(0.5)(layer)
+        output = Dense(1, activation="tanh")(layer)
 
-        model = Model(inputs=[MLP.input, CNN.input], outputs=output)
+        model = Model(inputs=[CNN.input, MLP.input], outputs=output)
 
         return model
 
