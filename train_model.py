@@ -62,7 +62,7 @@ if __name__ == "__main__":
     train_gen = DataGenerator(image_files=image_files[:-10000], lidar_files=lidar_files, dship_path=dship_file,
                               batch_size=batch_size)
     valid_gen = DataGenerator(image_files=image_files[-10000:], lidar_files=lidar_files, dship_path=dship_file,
-                              batch_size=batch_size)
+                              batch_size=batch_size, shuffle=False)
 
     gen0 = valid_gen[0]
     logging.debug(f"Image shape: {gen0[0][0][0].shape}")
