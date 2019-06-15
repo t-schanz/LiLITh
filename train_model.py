@@ -4,6 +4,7 @@ from bin.training import ModelTrainer
 import argparse
 import glob
 import logging
+from logging.handlers import RotatingFileHandler
 
 def get_args():
     parser = argparse.ArgumentParser()
@@ -44,7 +45,7 @@ def setup_logging(verbose):
         level=logging.getLevelName(verbose),
         format="%(asctime)s - %(levelname)s - %(module)s - %(funcName)s - %(message)s",
         handlers=[
-            logging.FileHandler(f"{__file__}.log"),
+            RotatingFileHandler(f"./logs/{__file__}.log", maxBytes=int(1e6), backupCount=5),
             logging.StreamHandler()
         ])
 
@@ -54,14 +55,14 @@ if __name__ == "__main__":
     setup_logging("INFO")
 
     image_files = sorted(glob.glob("D:/2019_Sonne/THERMAL/mx10-18-202-137/2019/extracted/05/*/*"))
-    lidar_files = sorted(glob.glob("D:/2019_Sonne/ceilometer/20190501_RV Sonne_CHM188105_000.nc"))
+    lidar_files = sorted(glob.glob("D:/2019_Sonne/ceilometer/201905*.nc"))
     dship_file = "D:/2019_Sonne/DSHIP/DSHIP_WEATHER_5MIN-RES_20181020-20190610/DSHIP_WEATHER_5MIN-RES_20181020-20190610.csv"
 
     batch_size = args["batches"]
 
-    train_gen = DataGenerator(image_files=image_files[:-10000], lidar_files=lidar_files, dship_path=dship_file,
+    train_gen = DataGenerator("TrainGen", image_files=image_files[:-1000], lidar_files=lidar_files, dship_path=dship_file,
                               batch_size=batch_size)
-    valid_gen = DataGenerator(image_files=image_files[-10000:], lidar_files=lidar_files, dship_path=dship_file,
+    valid_gen = DataGenerator("ValidGen", image_files=image_files[-1000:], lidar_files=lidar_files, dship_path=dship_file,
                               batch_size=batch_size, shuffle=False)
 
     gen0 = valid_gen[0]

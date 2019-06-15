@@ -6,16 +6,21 @@ from datetime import datetime as dt
 import numpy as np
 from PIL import Image
 import logging
+from tqdm import tqdm
+from datetime import timedelta
 
 
 class DataGenerator(Sequence):
 
-    def __init__(self, image_files, lidar_files, dship_path, batch_size, image_dim=None, shuffle=True):
+    def __init__(self, gen_name, image_files, lidar_files, dship_path, batch_size, image_dim=None, shuffle=True):
+        self.name = gen_name
         self.batch_size = batch_size
         self.image_files = image_files
         self.image_dim = image_dim or self.__get_image_dim()
         self.shuffle = shuffle
         self.indices = np.arange(len(image_files))
+        self.lidar_files = lidar_files
+        self.dship_path = dship_path
         self.lidar = self.__get_lidar_ds(lidar_files)
         self.dship = self.__get_regression_data(dship_path)
         self.dship_norm = self.__norm_dship_data()
@@ -24,14 +29,14 @@ class DataGenerator(Sequence):
 
     def on_epoch_end(self):
         if self.shuffle:
-            logging.debug("Shuffling indices.")
+            logging.debug(f"{self.name}: Shuffling indices.")
             np.random.shuffle(self.indices)
         else:
-            logging.debug("NO SHUFFLING")
+            logging.info(f"{self.name}: NO SHUFFLING")
 
     def __getitem__(self, index):
         batch_indices = self.indices[index * self.batch_size:(index + 1) * self.batch_size]
-        logging.debug(f"batch_indices: {batch_indices}")
+        logging.debug(f"{self.name}: batch_indices: {batch_indices}")
         X = np.empty((self.batch_size, *self.image_dim))
         y = np.empty((self.batch_size))
         dship = np.empty((self.batch_size, 5))
@@ -39,18 +44,36 @@ class DataGenerator(Sequence):
         for i, ID in enumerate(batch_indices):
             image_file = self.image_files[ID]
             image_date = self.__get_image_time(image_file)
-            logging.debug(f"Got image date: {image_date.strftime('%x %X')}")
             X[i, ] = self.__get_image(ID)
             y[i, ] = self.__get_cbh(image_date)
             dship[i, ] = self.__match_dship_to_image(image_date)
 
-        logging.debug(f"X max: {X.max()}")
         X_norm = self.__data_normalization(X)
         y_norm = self.__data_normalization(y, vmin=-1, vmax=10000)
+
+        if y.min() < -1:
+            logging.critical(f"{self.name}: Lidar Min unscaled {y.min()}")
+        if y.max() > 10000:
+            logging.critical(f"{self.name}: Lidar Max unscaled {y.max()}")
+
+        self.__check_nan(X_norm)
+        self.__check_nan(y_norm)
+        self.__check_nan(dship)
+
         return [X_norm, dship], y_norm
 
     def __len__(self):
         return int(np.floor(len(self.indices) / self.batch_size))
+
+    def __check_nan(self, array):
+        if np.any(np.isnan(array)):
+            raise ValueError(f"{self.name}: Input data with shape {array.shape} has nan values.")
+
+        if np.any(array > 1):
+            logging.critical(f"{self.name}: Input data with shape {array.shape} has Maximum {array.max()}.")
+
+        if np.any(array < -1):
+            logging.critical(f"{self.name}: Input data with shape {array.shape} has Minimum {array.min()}.")
 
     @staticmethod
     def __get_regression_data(file_path):
@@ -84,33 +107,32 @@ class DataGenerator(Sequence):
                          "humidity": humidity})
 
         ds = ds.fillna(-1)
-
         return ds
 
     @staticmethod
     def __get_lidar_ds(lidar_files):
         ds = xr.open_mfdataset(sorted(lidar_files))
         cbh = ds.cbh.sel(layer=1)
-        cbh = cbh.fillna(0)
+        cbh = cbh.fillna(-1)
+        cbh = xr.where(cbh < -1, -1, cbh)
         return cbh
 
-    @staticmethod
-    def __get_image_time(image_file):
+    def __get_image_time(self, image_file):
         filename = os.path.split(image_file)[-1]
         date = dt.strptime(filename[:13], "m%y%m%d%H%M%S")
-        logging.debug(f"Got time {date.strftime('%X %x')} from image {filename}")
+        logging.debug(f"{self.name}: Got time {date.strftime('%X %x')} from image {filename}")
         return date
 
     def __match_lidar_to_image(self, image_date):
-        matched_lidar_ds = self.lidar.sel(time=image_date, method="nearest")
+        matched_lidar_ds = self.lidar.sel(time=image_date, method="nearest", tolerance="1M")
         matched_time = matched_lidar_ds.time.values
-        logging.debug(f"Matching image_date {image_date.strftime('%x %X')} to lidar date {str(matched_time)}")
-        return matched_lidar_ds.data
+        logging.debug(f"{self.name}: Matching image_date {image_date.strftime('%x %X')} to lidar date {str(matched_time)}")
+        return matched_lidar_ds.values
 
     def __match_dship_to_image(self, image_date):
-        matched_dship_ds = self.dship_norm.sel(time=image_date, method="nearest")
+        matched_dship_ds = self.dship_norm.sel(time=image_date, method="nearest", tolerance="5M")
         matched_time = matched_dship_ds.time.values
-        logging.debug(f"Matching image_date {image_date.strftime('%x %X')} to dship date {str(matched_time)}")
+        logging.debug(f"{self.name}: Matching image_date {image_date.strftime('%x %X')} to dship date {str(matched_time)}")
 
         lat = matched_dship_ds.lat.data
         lon = matched_dship_ds.lon.data
@@ -153,14 +175,19 @@ class DataGenerator(Sequence):
         """
         return (array - (np.mean((vmin, vmax)))) / (vmax - vmin) * 1.999
 
+
 if __name__ == "__main__":
     import glob
-    logging.basicConfig(level=logging.DEBUG)
-    image_files = sorted(glob.glob("D:/2019_Sonne/THERMAL/mx10-18-202-137/2019/extracted/05/01/*"))
-    lidar_files = sorted(glob.glob("D:/2019_Sonne/ceilometer/20190501_RV Sonne_CHM188105_000.nc"))
+    logging.basicConfig(level=logging.INFO)
+    image_files = sorted(glob.glob("D:/2019_Sonne/THERMAL/mx10-18-202-137/2019/extracted/05/*/*"))
+    lidar_files = sorted(glob.glob("D:/2019_Sonne/ceilometer/201905*.nc"))
     dship_file = "D:/2019_Sonne/DSHIP/DSHIP_WEATHER_5MIN-RES_20181020-20190610/DSHIP_WEATHER_5MIN-RES_20181020-20190610.csv"
-    DG = DataGenerator(image_files=image_files, lidar_files=lidar_files, dship_path=dship_file, batch_size=32)
+    DG = DataGenerator("DebugGen", image_files=image_files, lidar_files=lidar_files, dship_path=dship_file, batch_size=128, shuffle=False)
 
-    for i in range(len(DG))[:1]:
-        print(i)
+    logging.info(f"Generator length: {len(DG)}")
+
+    for i in tqdm(range(len(DG))):
         foo = DG[i]
+        assert np.all(foo[1] >= -1)
+        assert np.all(foo[1] <= 1)
+        assert np.all(~np.isnan(foo[1]))

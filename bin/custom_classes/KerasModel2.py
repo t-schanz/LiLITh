@@ -71,8 +71,8 @@ class ModelStrucure(object):
         MLP = self.__build_MLP(MLP_shape)
 
         input = concatenate([CNN.output, MLP.output])
-        layer = Dense(4, activation="relu")(input)
-        layer = Dropout(0.5)(layer)
+        layer = Dropout(0.5)(input)
+        layer = Dense(4, activation="relu")(layer)
         output = Dense(1, activation="linear")(layer)
 
         model = Model(inputs=[CNN.input, MLP.input], outputs=output)
@@ -80,14 +80,14 @@ class ModelStrucure(object):
         return model
 
     def compile(self, model):
-        model.compile(loss="mean_absolute_percentage_error", optimizer=self.optimizer(),
-                      metrics=['mse'])
+        model.compile(loss="mse", optimizer=self.optimizer(),
+                      metrics=['mean_absolute_percentage_error'])
         logging.info("Successfully compiled model.")
         return model
 
     @staticmethod
     def optimizer():
-        opt = Adam(lr=0.001)
+        opt = Adam(lr=0.01)
         return opt
 
 

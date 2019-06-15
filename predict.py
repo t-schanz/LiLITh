@@ -34,6 +34,6 @@ if __name__ == "__main__":
     dship_array = pred_gen[0][0][1]
     lidar_array = pred_gen[0][1]
 
-    Pred = Prediction("./checkpoints/7/weights-improvement-04.hdf5")
-    X, y = Pred.predict([image_array, dship_array], lidar_array)
+    Pred = Prediction("./checkpoints/9/weights-improvement-05.hdf5")
+    X, y, X_raw, y_raw = Pred.predict([image_array, dship_array], lidar_array)
     Pred.save(X, y, image_time_array, "./results/CBH_20190501.nc")

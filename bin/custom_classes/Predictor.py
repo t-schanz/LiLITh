@@ -11,14 +11,14 @@ class Prediction(object):
 
     def predict(self, X, y):
         # X_norm = self.data_normalization(X[0], min=0, max=255)
-        predictions = self.model.predict(X)[:,0]
+        predictions = self.model.predict(X)[:, 0]
         preds_rescaled = self.prediction2cbh(predictions)
         y_rescaled = self.prediction2cbh(y)
-        return preds_rescaled, y_rescaled
+        return preds_rescaled, y_rescaled, predictions, y
 
     @staticmethod
     def prediction2cbh(prediction):
-        rescaled = DataRescaler().rescale(prediction)
+        rescaled = DataRescaler().rescale(prediction, vmin=-1, vmax=10000)
         return rescaled
 
     @staticmethod
@@ -26,10 +26,10 @@ class Prediction(object):
         da_X = xr.DataArray(X, dims="time", coords={"time": time_array})
         da_y = xr.DataArray(y, dims="time", coords={"time": time_array})
         ds = xr.Dataset({"X": da_X, "y": da_y})
-        ds["X"]["long_name"] = "Predicted Cloud Base Height"
-        ds["y"]["long_name"] = "Ceilometer Cloud Base Height"
-        ds["X"]["unit"] = "m"
-        ds["y"]["unit"] = "m"
+        ds["X"].attrs["long_name"] = "Predicted Cloud Base Height"
+        ds["y"].attrs["long_name"] = "Ceilometer Cloud Base Height"
+        ds["X"].attrs["unit"] = "m"
+        ds["y"].attrs["unit"] = "m"
         ds.to_netcdf(save_file)
 
     @staticmethod
