@@ -63,9 +63,12 @@ if __name__ == "__main__":
     train_gen = DataGenerator("TrainGen", image_files=image_files[:-1000], lidar_files=lidar_files, dship_path=dship_file,
                               batch_size=batch_size)
     valid_gen = DataGenerator("ValidGen", image_files=image_files[-1000:], lidar_files=lidar_files, dship_path=dship_file,
-                              batch_size=batch_size, shuffle=False)
+                              batch_size=1000, shuffle=False)
 
-    gen0 = valid_gen[0]
+    valid_data = valid_gen[0]
+
+
+    gen0 = train_gen[0]
     logging.debug(f"Image shape: {gen0[0][0][0].shape}")
     logging.debug(f"DSHIP shape: {gen0[0][1][0].shape}")
 
@@ -74,7 +77,8 @@ if __name__ == "__main__":
     model = Ms.build_model(CNN_shape=gen0[0][0][0].shape, MLP_shape=gen0[0][1][0].shape[0])
     model = Ms.compile(model)
 
-    Trainer = ModelTrainer(model=model, training_generator=train_gen, valid_generator=valid_gen,
+
+    Trainer = ModelTrainer(model=model, training_generator=train_gen, valid_generator=valid_data,
                            batch_size=batch_size, epochs=args["epochs"], run_id=args["run_id"],
                            outpath=args["outpath"], workers=args["workers"], shuffling=True)
 

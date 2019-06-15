@@ -23,35 +23,30 @@ class ModelStrucure(object):
         return model
 
     @staticmethod
-    def __build_CNN(in_shape, regress=False):
-        nout = 2
+    def __build_CNN(in_shape, regress=False, depth=1):
+        nout = 8
 
         in_layer = Input(in_shape)
         logging.debug(f"Input_shape: {K.int_shape(in_layer)}")
 
-        layer = Conv2D(filters=nout, kernel_size=(3, 3), padding="SAME", activation="linear")(in_layer)
+        layer = Conv2D(filters=nout, kernel_size=(3, 3), padding="VALID", activation="linear")(in_layer)
         layer = BatchNormalization()(layer)
         layer = LeakyReLU()(layer)
         logging.debug(f"After first convolution: {K.int_shape(layer)}")
 
         go_on = True
-        while go_on:
-            try:
-                t_layer = Conv2D(filters=nout, kernel_size=(3, 3), padding="SAME", activation="linear")(layer)
-                t_layer = BatchNormalization()(t_layer)
-                t_layer = LeakyReLU()(t_layer)
+        for _ in range(depth):
+            t_layer = Conv2D(filters=nout, kernel_size=(3, 3), padding="VALID", activation="linear")(layer)
+            t_layer = BatchNormalization()(t_layer)
+            t_layer = LeakyReLU()(t_layer)
 
-                t_layer = MaxPooling2D(pool_size=(2, 2))(t_layer)
+            # t_layer = MaxPooling2D(pool_size=(2, 2))(t_layer)
 
-                nout *= 2
-                layer = t_layer
-                logging.debug(f"After pooling: {K.int_shape(layer)}")
+            layer = t_layer
+            logging.debug(f"After loop: {K.int_shape(layer)}")
 
-            except ValueError:
-                go_on = False
-                logging.debug(f"Final pooling shape: {K.int_shape(layer)}")
 
-        layer = Conv2D(filters=nout, kernel_size=(2, 2), padding="SAME", activation="linear")(layer)
+        layer = Conv2D(filters=nout, kernel_size=(2, 2), padding="VALID", activation="linear")(layer)
         layer = BatchNormalization()(layer)
         layer = LeakyReLU()(layer)
 
@@ -71,8 +66,8 @@ class ModelStrucure(object):
         MLP = self.__build_MLP(MLP_shape)
 
         input = concatenate([CNN.output, MLP.output])
-        layer = Dropout(0.5)(input)
-        layer = Dense(4, activation="relu")(layer)
+        layer = Dropout(0.2)(input)
+        layer = Dense(4, activation="relu")(input)
         output = Dense(1, activation="linear")(layer)
 
         model = Model(inputs=[CNN.input, MLP.input], outputs=output)
@@ -87,7 +82,7 @@ class ModelStrucure(object):
 
     @staticmethod
     def optimizer():
-        opt = Adam(lr=0.01)
+        opt = Adam(lr=0.001)
         return opt
 
 
